@@ -2,8 +2,8 @@
 
 set -e
 
-# void, alpine, arch, and suse have packages
-# need to build on fedora (without terra) and debian/ubuntu
+# void, alpine, arch, debian, ubuntu, and suse have packages
+# need to build on fedora (without terra)
 
 ROOT=$(pwd)
 
@@ -41,59 +41,54 @@ fi
 echo "Installing, this may take some time...."
 
 # Fedora with the terra repo (Ultramarine) has keyd packaged
-[ "$distro" = "fedora" ] && dnf4 info keyd -y&>> pkg.log && FEDORA_HAS_KEYD=1
+[ "$distro" = "fedora" ] && dnf4 info keyd -y &>> pkg.log && FEDORA_HAS_KEYD=1
 
 if ! which keyd &>/dev/null && [ "$distro" != "nixos" ] ; then
-	build_keyd=1
-  # if keyd isnt installed
+	build_keyd=0  # Default to not building, since most distros now have packages
 
-  # Debian-based distros and Fedora don't have keyd in the repos, ask the user to compile it from source.
-  if [ "distro" = "fedora" ] && [ ! "$FEDORA_HAS_KEYD" = "1" ] || [ "$distro" = "deb" ]; then
-  	echo "This script can compile keyd for you or you can choose to get it from another source."
-  	printf "Compile keyd? (Y/n) "
-  	read -r COMPKEYD
-		[[ $COMPKEYD =~ ^[Nn]$ ]] && build_keyd=0
-  fi
-
-	if [ "$build_keyd" = "1" ]; then
-		echo "Installing keyd dependencies"
-		case $distro in
-			deb)
-				$privesc apt install -y build-essential git &>> pkg.log
-				;;
-			fedora)
-				[ ! "$FEDORA_HAS_KEYD" = "1" ] && $privesc dnf4 install -y kernel-headers gcc make &>> pkg.log
-				;;
-		esac
-	fi
-
-	if ( [ "distro" = "fedora" ] && [ ! "$FEDORA_HAS_KEYD" = "1" ] || [ "$distro" = "deb" ] ) && [ "$build_keyd" = "1" ]; then
-		echo "Compiling keyd"
-		git clone https://github.com/rvaiya/keyd &>> pkg.log
-		cd keyd
-		make &>> pkg.log
-		$privesc make install
-		cd ..
-	else
-		echo "Installing keyd"
-		case $distro in
-			suse)
-				$privesc zypper --non-interactive install keyd &>> pkg.log
-				;;
-			arch)
-				$privesc pacman -S --noconfirm keyd &>> pkg.log
-				;;
-			alpine)
-				$privesc apk add --no-interactive keyd &>> pkg.log
-				;;
-			void)
-		  	$privesc xbps-install -S keyd -y &>> pkg.log
-				;;
-			fedora)
+	echo "Installing keyd"
+	case $distro in
+		deb)
+			# Now using package repositories for Debian/Ubuntu
+			$privesc apt update &>> pkg.log
+			$privesc apt install -y keyd &>> pkg.log
+			;;
+		suse)
+			$privesc zypper --non-interactive install keyd &>> pkg.log
+			;;
+		arch)
+			$privesc pacman -S --noconfirm keyd &>> pkg.log
+			;;
+		alpine)
+			$privesc apk add --no-interactive keyd &>> pkg.log
+			;;
+		void)
+			$privesc xbps-install -S keyd -y &>> pkg.log
+			;;
+		fedora)
+			if [ "$FEDORA_HAS_KEYD" = "1" ]; then
 				$privesc dnf4 install -y keyd &>> pkg.log
-				;;
-		esac
-	fi
+			else
+				echo "keyd is not available in your Fedora repositories."
+				echo "This script can compile keyd for you or you can choose to get it from another source."
+				printf "Compile keyd? (Y/n) "
+				read -r COMPKEYD
+				[[ $COMPKEYD =~ ^[Nn]$ ]] && exit 1 || build_keyd=1
+
+				if [ "$build_keyd" = "1" ]; then
+					echo "Installing keyd dependencies"
+					$privesc dnf4 install -y kernel-headers gcc make git &>> pkg.log
+
+					echo "Compiling keyd"
+					git clone https://github.com/rvaiya/keyd &>> pkg.log
+					cd keyd
+					make &>> pkg.log
+					$privesc make install
+					cd ..
+				fi
+			fi
+			;;
+	esac
 fi
 
 echo "Generating config"
@@ -116,8 +111,8 @@ else
 	if [ "$distro" == "nixos" ] && ! which python3 &>/dev/null; then
 		[[ $INVERT =~ ^[Yy]$ ]] && nix-shell -p python3 --run "python3 cros-keyboard-map.py -i" || 
 			nix-shell -p python3 --run "python3 cros-keyboard-map.py"
-				else
-					[[ $INVERT =~ ^[Yy]$ ]] && python3 cros-keyboard-map.py -i || python3 cros-keyboard-map.py
+	else
+		[[ $INVERT =~ ^[Yy]$ ]] && python3 cros-keyboard-map.py -i || python3 cros-keyboard-map.py
 	fi
 fi
 
