@@ -129,7 +129,7 @@ def get_keyd_config(physmap, inverted):
 [main]
 {get_functional_row(physmap, use_vivaldi=False, super_is_held=False, super_inverted=inverted)}
 {get_functional_row(physmap, use_vivaldi=True, super_is_held=False, super_inverted=inverted)}
-f13=coffee
+f13 = M-l
 sleep=coffee
 
 [meta]
